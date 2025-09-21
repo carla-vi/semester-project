@@ -1,16 +1,17 @@
+version: "3.9"
+
 services:
   agent_a:
     build: ./agent_a
-    container_name: agent_a
     ports:
       - "8002:8002"
     volumes:
       - ./certs:/certs
     command: ["python", "app.py"]
 
+
   agent_b:
     build: ./agent_b
-    container_name: agent_b
     ports:
       - "8001:8001"
     volumes:
@@ -19,20 +20,44 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_MODEL=llama3:8b   # OLLAMA_MODEL=gpt-oss:latest docker compose up --build
+      - OLLAMA_MODEL=llama3:8b   # Change to gpt-oss:latest, llama3:70b, etc
     entrypoint: >
       sh -c "ollama serve &
              until ollama pull $OLLAMA_MODEL; do
                echo 'retrying pull...';
                sleep 5;
-             done &&
-             wait"
+             done;
+             tail -f /dev/null"
+
+
+  mongo:
+    image: mongo:4.4
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+
+  populate-emails:
+    build: ./testSetup
+    depends_on:
+      - mongo
+    command: sh -c "sleep 5 && python populateEmails.py"
+
+
+  populate-eggs:
+    build: ./testSetup
+    depends_on:
+      - mongo
+    command: sh -c "sleep 5 && python populateEggPrice.py"
+
 
 volumes:
   ollama_data:
+  mongo-data:
+

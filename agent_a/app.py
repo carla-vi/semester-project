@@ -1,4 +1,4 @@
-import socket, ssl, threading
+import socket, ssl, threading, traceback
 
 # Ports
 A_HOST, A_PORT = "0.0.0.0", 8002
@@ -21,16 +21,34 @@ def extract_cn(cert) -> str:
 
 def forward_to_b(message: str) -> str:
     """Forward message to Agent B using mTLS"""
-    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=CA)
-    context.load_cert_chain(certfile=CERT, keyfile=KEY)
+    print(f"[DEBUG A] Preparing to forward message to B: {message}")
+    print(f"[DEBUG A] Target host: {B_HOST}, port: {B_PORT}")
 
-    raw_sock = socket.create_connection((B_HOST, B_PORT))
-    tls_sock = context.wrap_socket(raw_sock, server_hostname="agent_b")
+    try:
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=CA)
+        context.load_cert_chain(certfile=CERT, keyfile=KEY)
 
-    tls_sock.send(message.encode())
-    reply = tls_sock.recv(1024).decode()
-    tls_sock.close()
-    return reply
+        print("[DEBUG A] Creating raw TCP socket...")
+        raw_sock = socket.create_connection((B_HOST, B_PORT), timeout=20)
+        print("[DEBUG A] TCP connection established with B")
+
+        print("[DEBUG A] Wrapping socket with TLS...")
+        tls_sock = context.wrap_socket(raw_sock, server_hostname="agent_b")
+        print("[DEBUG A] TLS handshake complete")
+
+        print(f"[DEBUG A] Sending message: {message}")
+        tls_sock.send(message.encode())
+
+        reply = tls_sock.recv(1024).decode()
+        print(f"[DEBUG A] Got reply from B: {reply}")
+
+        tls_sock.close()
+        return reply
+
+    except Exception as e:
+        print("[DEBUG A] Error while forwarding to B:", e)
+        traceback.print_exc()
+        return f"Error forwarding to B: {e}"
 
 def handle_person(tls_conn):
     try:

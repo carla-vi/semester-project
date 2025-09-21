@@ -1,5 +1,5 @@
-import socket, ssl, requests
-import os
+import socket, ssl, requests, os, json, time
+from tools import TOOL_REGISTRY
 
 HOST, PORT = "0.0.0.0", 8001
 
@@ -10,19 +10,50 @@ CA   = "/certs/rootCA.crt"
 OLLAMA_URL = "http://ollama:11434/api/chat"
 MODEL = os.environ.get("OLLAMA_MODEL", "llama3:8b")
 
-def ask_llm(user_message: str) -> str:
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": "You are Agent B, a helpful assistant."},
-            {"role": "user", "content": user_message}
-        ],
-        "stream": False,
-    }
-    resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("message", {}).get("content", "")
+def ask_llm(user_message: str, max_retries=3) -> dict:
+    """Ask Ollama, enforce JSON, decide between answer or tool."""
+    tool_list = ", ".join(TOOL_REGISTRY.keys())
+    system_prompt = f"""
+You are Agent B, a reasoning assistant.
+
+Rules:
+- If the user asks for general knowledge (e.g., history, weather concept, math), reply directly with: {{"answer": "..."}}
+- If the user asks about enterprise data (e.g., eggs, milk, bread prices), DO NOT guess.
+  You MUST use the appropriate tool from this list: {", ".join(TOOL_REGISTRY.keys())}
+
+Respond ONLY with a valid JSON object:
+- Direct answer: {{"answer": "..."}}
+- Tool request: {{"tool": "tool_name"}}
+
+Never invent values. If unsure, call a tool.
+"""
+
+    for attempt in range(max_retries):
+        payload = {
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            "stream": False,
+        }
+
+        resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        resp.raise_for_status()
+        reply = resp.json().get("message", {}).get("content", "{}")
+
+        print(f"[DEBUG] Raw LLM reply (attempt {attempt+1}): {repr(reply)}")
+
+        try:
+            return json.loads(reply)
+        except json.JSONDecodeError:
+            print("Invalid JSON, retrying...")
+            time.sleep(1)
+
+    # fallback: treat reply as a plain answer
+    return {"answer": reply}
+
+
 def main():
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.verify_mode = ssl.CERT_REQUIRED
@@ -44,12 +75,22 @@ def main():
             data = tls_conn.recv(2048).decode()
             print("Agent B received:", data)
 
-            # send to Ollama
-            llm_reply = ask_llm(data)
-            print("LLM reply:", llm_reply)
+            decision = ask_llm(data)
+            print("Parsed LLM decision:", decision)
 
-            # send back to Agent A
-            tls_conn.send(f"B (LLM): {llm_reply}".encode())
+            if "tool" in decision:
+                tool_name = decision["tool"]
+                tool = TOOL_REGISTRY.get(tool_name)
+                if tool:
+                    result = tool()
+                    final_answer = f"Tool {tool_name} result: {result}"
+                else:
+                    final_answer = f"Unknown tool: {tool_name}"
+            else:
+                final_answer = decision.get("answer", "No answer")
+
+            print("Final answer:", final_answer)
+            tls_conn.send(f"B: {final_answer}".encode())
 
         except ssl.SSLError as e:
             print("TLS handshake failed:", e)
@@ -58,6 +99,7 @@ def main():
                 tls_conn.close()
             except:
                 conn.close()
+
 
 if __name__ == "__main__":
     main()

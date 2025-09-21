@@ -18,7 +18,7 @@ def main():
     server_cert = tls_sock.getpeercert()
     print(f"Connected to A. Server CN: {server_cert['subject']}")
 
-    tls_sock.send(f"Hello A, this is {name}".encode())
+    tls_sock.send(f"Hello A, this is {name}, get the average price of the eggs of our entreprise.".encode())
     reply = tls_sock.recv(1024).decode()
     print(f"{name} received:", reply)
     tls_sock.close()
