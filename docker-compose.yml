@@ -1,0 +1,38 @@
+services:
+  agent_a:
+    build: ./agent_a
+    container_name: agent_a
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./certs:/certs
+    command: ["python", "app.py"]
+
+  agent_b:
+    build: ./agent_b
+    container_name: agent_b
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./certs:/certs
+    command: ["python", "app.py"]
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MODEL=llama3:8b   # OLLAMA_MODEL=gpt-oss:latest docker compose up --build
+    entrypoint: >
+      sh -c "ollama serve &
+             until ollama pull $OLLAMA_MODEL; do
+               echo 'retrying pull...';
+               sleep 5;
+             done &&
+             wait"
+
+volumes:
+  ollama_data:
