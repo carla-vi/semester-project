@@ -10,7 +10,7 @@ KEY  = "/certs/agentB.key"
 CA   = "/certs/rootCA.crt"
 
 OLLAMA_URL = "http://ollama:11434/api/chat"
-MODEL = os.environ.get("OLLAMA_MODEL", "llama3:8b")
+MODEL = os.environ.get("OLLAMA_MODEL", "gpt-oss:latest")  # e.g., "llama3:8b"
 
 
 def ask_llm(user_message: str, max_retries=3) -> dict:
