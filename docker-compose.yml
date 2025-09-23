@@ -5,18 +5,33 @@ services:
     build: ./agent_a
     ports:
       - "8002:8002"
+      - "8602:8602"   # Update server port
+      - "8502:8502"   # Sync listener port
     volumes:
       - ./certs:/certs
-    command: ["python", "app.py"]
+    command: ["python", "-u", "app.py"]
 
 
   agent_b:
     build: ./agent_b
     ports:
       - "8001:8001"
+      - "8601:8601"
+      - "8501:8501"
     volumes:
       - ./certs:/certs
-    command: ["python", "app.py"]
+    command: ["python", "-u", "app.py"]
+    
+  agent_s:
+    build: ./agent_s
+    ports:
+      - "8003:8003"
+      - "8603:8603"
+      - "8503:8503" 
+
+    volumes:
+      - ./certs:/certs
+    command: ["python", "-u", "app.py"]
 
   ollama:
     image: ollama/ollama:latest

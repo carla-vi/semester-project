@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "timestamp": "2025-09-21T12:00:00Z",
+  "signature": "init-signature",
+  "author": "system",
+  "agents": {
+    "agent_a": {
+      "role": "gateway",
+      "tools": ["forward", "filter"],
+      "criticality": "high",
+      "allowed_users": ["alice", "bob", "tom"]
+    },
+    "agent_b": {
+      "role": "reasoner",
+      "tools": ["llm", "tools"],
+      "criticality": "medium",
+      "allowed_users": ["charlie", "dave", "tom"]
+    },
+    "agent_s": {
+      "role": "supervisor",
+      "tools": ["bootstrap", "audit"],
+      "criticality": "critical",
+      "allowed_users": ["tom"]
+    }
+  },
+  "admins": ["tom"],
+  "trust": {
+    "agent_a": {"score": 90, "last_seen": "2025-09-21T11:00:00Z"},
+    "agent_b": {"score": 85, "last_seen": "2025-09-21T11:05:00Z"},
+    "agent_s": {"score": 100, "last_seen": "2025-09-21T11:10:00Z"}
+  }
+}
