@@ -31,7 +31,7 @@ def forward_to_b(message: str) -> str:
         context.load_cert_chain(certfile=CERT, keyfile=KEY)
 
         print("[DEBUG A] Creating raw TCP socket...")
-        raw_sock = socket.create_connection((B_HOST, B_PORT), timeout=20)
+        raw_sock = socket.create_connection((B_HOST, B_PORT), timeout=120)
         print("[DEBUG A] TCP connection established with B")
 
         print("[DEBUG A] Wrapping socket with TLS...")
