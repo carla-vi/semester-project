@@ -38,13 +38,16 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - OLLAMA_MODEL=${OLLAMA_MODEL}  # Change to gpt-oss:latest, llama3:70b, etc
+      - OLLAMA_MODEL=${OLLAMA_MODEL}  # e.g., gpt-oss:latest, llama3:8b, llama3:70b
     entrypoint: >
-      sh -c "ollama serve &
-             until ollama pull $OLLAMA_MODEL; do
-               echo 'retrying pull...';
-               sleep 5;
-             done;
+      sh -c "ollama serve & 
+             sleep 2 && 
+             if ! ollama list | grep -q $OLLAMA_MODEL; then 
+               echo 'Model $OLLAMA_MODEL not found, pulling...'; 
+               ollama pull $OLLAMA_MODEL; 
+             else 
+               echo 'Model $OLLAMA_MODEL already available, skipping pull'; 
+             fi; 
              tail -f /dev/null"
 
 

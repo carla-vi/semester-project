@@ -10,10 +10,10 @@ KEY  = "/certs/agentB.key"
 CA   = "/certs/rootCA.crt"
 
 OLLAMA_URL = "http://ollama:11434/api/chat"
-MODEL = os.environ.get("OLLAMA_MODEL", "gpt-oss:latest")  # e.g., "llama3:8b"
+MODEL = os.environ.get("OLLAMA_MODEL", "llama3:8b")  # e.g., "llama3:8b"
 
 
-def ask_llm(user_message: str, max_retries=3) -> dict:
+def ask_llm(user_message: str, max_retries=5, wait=10) -> dict:
     """Ask Ollama, enforce JSON, decide between answer or tool."""
     system_prompt = f"""
 You are Agent B, a reasoning assistant.
@@ -28,7 +28,7 @@ Respond ONLY with valid JSON:
 - Tool request: {{"tool": "tool_name"}}
 """
 
-    for attempt in range(max_retries):
+    for attempt in range(1, max_retries + 1):
         payload = {
             "model": MODEL,
             "messages": [
@@ -38,19 +38,37 @@ Respond ONLY with valid JSON:
             "stream": False,
         }
 
-        resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
-        resp.raise_for_status()
-        reply = resp.json().get("message", {}).get("content", "{}")
-
-        print(f"[DEBUG] Raw LLM reply (attempt {attempt+1}): {repr(reply)}")
-
         try:
-            return json.loads(reply)
-        except json.JSONDecodeError:
-            print("Invalid JSON, retrying...")
-            time.sleep(1)
+            print(f"[DEBUG] Attempt {attempt}: sending to Ollama {MODEL}")
+            resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
+            time.sleep(6)
 
-    return {"answer": reply}
+            if resp.status_code == 404:
+                print(f"[WARN] Ollama not ready (404). Waiting {wait}s...")
+                time.sleep(wait)
+                continue  # retry
+
+            if resp.status_code != 200:
+                print(f"[ERROR] HTTP {resp.status_code}: {resp.text[:200]}")
+                time.sleep(wait)
+                continue
+
+            reply = resp.json().get("message", {}).get("content", "{}")
+            print(f"[DEBUG] Raw LLM reply: {repr(reply)}")
+
+            try:
+                return json.loads(reply)
+            except json.JSONDecodeError:
+                print("[WARN] Invalid JSON, retrying...")
+                time.sleep(wait)
+
+        except Exception as e:
+            print(f"[ERROR] Request failed: {e}, retrying in {wait}s...")
+            time.sleep(wait)
+
+    return {"answer": "LLM unavailable after retries"}
+
+
 
 
 def handle_agent_a(tls_conn):
