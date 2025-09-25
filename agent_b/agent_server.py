@@ -58,6 +58,8 @@ Never invent values. If unsure, call a tool.
     return {"answer": reply}
 
 
+
+
 def run_agent_server():
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.verify_mode = ssl.CERT_REQUIRED
@@ -76,10 +78,28 @@ def run_agent_server():
             client_cert = tls_conn.getpeercert()
             print("TLS handshake done. Client cert CN:", client_cert.get("subject"))
 
-            data = tls_conn.recv(2048).decode()
-            print("Agent B received:", data)
+            raw = tls_conn.recv(2048).decode()
+            print("Agent B received:", raw)
 
-            decision = ask_llm(data)
+            # 🔹 Parse JSON {user, msg}
+            try:
+                req = json.loads(raw)
+                user = req.get("user")
+                msg  = req.get("msg")
+            except Exception as e:
+                print("Invalid JSON from A:", e)
+                tls_conn.send(b"Invalid request format")
+                continue
+
+            # 🔹 ACL check
+            allowed_users = [u.lower() for u in allowed_users_for_agent("agent_b")]
+            if user.lower() not in allowed_users:
+                print(f"Access denied for {user} on Agent B")
+                tls_conn.send(f"Access denied for {user}".encode())
+                continue
+
+            # 🔹 Ask LLM
+            decision = ask_llm(msg)
             print("Parsed LLM decision:", decision)
 
             if "tool" in decision:
@@ -93,8 +113,8 @@ def run_agent_server():
             else:
                 final_answer = decision.get("answer", "No answer")
 
-            print("Final answer:", final_answer)
-            tls_conn.send(f"B: {final_answer}".encode())
+            print("Final answer:", final_answer, "the user is:", user)
+            tls_conn.send(f"B ({user}): {final_answer}".encode())
 
         except ssl.SSLError as e:
             print("TLS handshake failed:", e)
@@ -103,6 +123,7 @@ def run_agent_server():
                 tls_conn.close()
             except:
                 conn.close()
+
 
 
 if __name__ == "__main__":
